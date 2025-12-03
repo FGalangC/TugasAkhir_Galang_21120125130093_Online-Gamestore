@@ -1,409 +1,451 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-import json, os, time
+from tkinter import messagebox, simpledialog
+from tkinter import ttk
+from collections import deque
+import json
+import os
 
-HISTORY_FILE = "history.json"
+# Modul 1: Variabel, Tipe Data, dan Array
 
-# ===============================
-# QUEUE & STACK
-# ===============================
+DATA_FILENAME = "gamevault_data.json"      # Variabel string
+MAX_RECENT = 10                            # Variabel integer (constant)
 
-class Queue:
-    def __init__(self):
-        self.items = []
+# Array (List)
+PLATFORM_OPTIONS = ["PC", "PS5", "PS4", "Xbox", "Nintendo Switch", "Mobile", "VR"]
+STATUS_OPTIONS = ["Playing", "Completed", "Planned"]
 
-    def enqueue(self, item):
-        self.items.append(item)
+# Modul 5: OOP - class Game
 
-    def dequeue(self):
-        if self.is_empty():
-            return None
-        return self.items.pop(0)
+class Game:
+    def __init__(self, title: str, genre: str, platform: str, year: int, status: str):
+        # tipe data string dan integer
+        self.title = title
+        self.genre = genre
+        self.platform = platform
+        self.year = int(year)
+        self.status = status
 
-    def is_empty(self):
-        return len(self.items) == 0
+    # Modul 4: Method
+    def to_dict(self):
+        return {
+            "title": self.title,
+            "genre": self.genre,
+            "platform": self.platform,
+            "year": self.year,
+            "status": self.status
+        }
 
-    def show_all(self):
-        return list(self.items)
-
-
-class Stack:
-    def __init__(self):
-        self.items = []
-
-    def push(self, item):
-        self.items.append(item)
-
-    def show_all(self):
-        return list(self.items)
-
-
-# ===============================
-# CLASS DOMAIN
-# ===============================
-
-class Route:
-    def __init__(self, code, name):
-        self.code = code
-        self.name = name
+    # Modul 4 + OOP: staticmethod → contoh function dalam class
+    @staticmethod
+    def from_dict(d):
+        return Game(d["title"], d["genre"], d["platform"], int(d["year"]), d["status"])
 
     def __str__(self):
-        return f"{self.code} - {self.name}"
+        return f"{self.title} | {self.genre} | {self.platform} | {self.year} | {self.status}"
 
+# Modul 5 + Modul 6: CatalogManager (OOP + Stack & Queue)
 
-class Driver:
-    def __init__(self, did, name):
-        self.id = did
-        self.name = name
-        self.status = "Idle"
-        self.current_report = None
+class CatalogManager:
+    def __init__(self, filename=DATA_FILENAME):
+        self.filename = filename
+        self.games_list = []          # Array → Modul 1
+        self.undo_stack = []          # Stack → Modul 6 (LIFO)
+        self.recent_queue = deque(maxlen=MAX_RECENT)  # Queue → Modul 6 (FIFO)
+        self.load()
 
-    def assign(self, report):
-        if self.status != "Idle":
-            return False
-        self.current_report = report
-        self.status = "Handling"
-        return True
-
-    def finish(self):
-        if not self.current_report:
-            return None
-        finished = self.current_report
-        self.current_report = None
-        self.status = "Idle"
-        return finished
-
-
-# ===============================
-# DELAY MANAGER
-# ===============================
-
-class DelayManager(Queue, Stack):
-    def __init__(self):
-        Queue.__init__(self)
-        Stack.__init__(self)
-        self.routes = []
-        self.drivers = []
-        self.next_driver_id = 1
-
-    def add_route(self, code, name):
-        r = Route(code, name)
-        self.routes.append(r)
-
-    def add_driver(self, name):
-        d = Driver(self.next_driver_id, name)
-        self.next_driver_id += 1
-        self.drivers.append(d)
-
-    def get_driver(self, did):
-        for d in self.drivers:
-            if d.id == did:
-                return d
-        return None
-
-    def auto_assign(self):
-        if self.is_empty():
-            return False, "No reports in queue"
-
-        idle = [d for d in self.drivers if d.status == "Idle"]
-        if not idle:
-            return False, "No idle drivers"
-
-        driver = idle[0]
-        report = self.dequeue()
-        driver.assign(report)
-
-        return True, f"{driver.name} assigned to {report['route_code']}"
-
-    def driver_finish(self, did):
-        driver = self.get_driver(did)
-        if not driver:
-            return False, "Driver not found"
-
-        finished = driver.finish()
-        if not finished:
-            return False, "Driver has no job"
-
-        rec = {
-            "driver": driver.name,
-            "report": finished,
-            "timestamp": time.time()
-        }
-
-        self.push(rec)
-        self._save_history(rec)
-
-        return True, rec
-
-    def _save_history(self, rec):
-        arr = []
-        if os.path.exists(HISTORY_FILE):
+    # Modul 4: Method 
+    def load(self):
+        # Modul 2: Pengkondisian (if/else)
+        if os.path.exists(self.filename):
             try:
-                arr = json.load(open(HISTORY_FILE))
-            except:
-                arr = []
+                with open(self.filename, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    # Modul 3: Perulangan (loop daftar game)
+                    self.games_list = [Game.from_dict(d) for d in data]
+            except Exception:
+                self.games_list = []
+        else:
+            self.games_list = []
 
-        arr.append(rec)
-        json.dump(arr, open(HISTORY_FILE, "w"), indent=2)
+    # Modul 4: Method
+    def save(self):
+        with open(self.filename, "w", encoding="utf-8") as f:
+            json.dump([g.to_dict() for g in self.games_list], f, indent=2)
+
+    # Modul 4: Method + Modul 2 (Pengkondisian)
+    def add_game(self, game: Game):
+        if any(g.title.lower() == game.title.lower() for g in self.games_list):   # modul 3 (loop any)
+            raise ValueError("Game dengan judul sama sudah ada.")
+        self.games_list.append(game)
+        self.save()
+
+    # Modul 4: Method (delete) + Stack for undo
+    def remove_game(self, title: str):
+        removed = [g for g in self.games_list if g.title.lower() == title.lower()]
+        if not removed:
+            raise ValueError("Game tidak ditemukan.")
+        for g in removed:          # Modul 3: Loop
+            self.undo_stack.append(("delete", g.to_dict()))
+        self.games_list = [g for g in self.games_list if g.title.lower() != title.lower()]
+        self.save()
+
+    # Modul 4: Edit Method
+    def edit_game(self, title: str, new_game: Game):
+        found = False
+        # Modul 3: Loop
+        for i, g in enumerate(self.games_list):
+            if g.title.lower() == title.lower():
+                self.undo_stack.append(("edit", g.to_dict()))
+                self.games_list[i] = new_game
+                found = True
+        if not found:
+            raise ValueError("Game tidak ditemukan untuk diedit.")
+        self.save()
+
+    # Modul 4
+    def search_games(self, keyword: str):
+        if not keyword: return list(self.games_list)
+        keyword = keyword.lower()
+        # Modul 3: Loop 
+        return [g for g in self.games_list if (
+            keyword in g.title.lower() or
+            keyword in g.genre.lower() or
+            keyword in g.platform.lower() or
+            keyword in str(g.year) or
+            keyword in g.status.lower())]
+
+    def list_all(self):
+        return list(self.games_list)
+
+    # Modul 6: Stack Undo
+    def undo(self):
+        if not self.undo_stack:
+            raise ValueError("Tidak ada operasi untuk di-undo.")
+        op, payload = self.undo_stack.pop()   # LIFO mechanism
+        if op == "delete":
+            g = Game.from_dict(payload)
+            self.games_list.append(g)
+            self.save()
+            return f"Restore: {g.title}"
+        elif op == "edit":
+            prev = Game.from_dict(payload)
+            replaced = False
+            for i, g in enumerate(self.games_list):  # Modul 3
+                if g.title.lower() == prev.title.lower():
+                    self.games_list[i] = prev
+                    replaced = True
+                    break
+            if not replaced:
+                self.games_list.append(prev)
+            self.save()
+            return f"Undo edit: {prev.title}"
+
+    # Modul 6: Queue (Push Recent)
+    def push_recent(self, game: Game):
+        self.recent_queue.append(game.to_dict())
+
+    def get_recent(self):
+        return [Game.from_dict(d) for d in list(self.recent_queue)]
 
 
-# ===============================
-# GUI APP
-# ===============================
+# Modul 4 (Function: Validasi & Normalisasi)
 
-class App:
+def validate_nonempty(s: str):
+    return bool(s and s.strip())
+
+def validate_year(y):
+    try:
+        yy = int(y)
+        return 1970 <= yy <= 2050  # Modul 2 (pengkondisian)
+    except:
+        return False
+
+def normalize_status(s: str):
+        s = s.strip().lower()
+        if s in ("playing", "main", "sedang bermain"): return "Playing"     # modul 2
+        if s in ("completed", "tamat", "selesai"): return "Completed"
+        if s in ("planned", "belum", "to play"): return "Planned"
+        return s.title()
+
+# Modul 8: LOGIN UI (GUI)
+
+class LoginScreen:
     def __init__(self, root):
         self.root = root
-        root.title("Transport Delay Manager")
-        root.geometry("1000x650")
-        root.configure(bg="#0F172A")
+        self.root.title("GameVault - Login")
+        self.root.geometry("400x260")
+        self.root.configure(bg="#0f0f0f")
 
-        self.dm = DelayManager()
+        tk.Label(root, text="GAMEVAULT LOGIN", font=("Poppins", 18, "bold"), fg="#00d0ff", bg="#0f0f0f").pack(pady=15)
 
-        self.setup_style()
+        tk.Label(root, text="Masukkan Username:", font=("Poppins", 10), fg="white", bg="#0f0f0f").pack()
 
-        # HEADER
-        tk.Label(root,
-            text="🚍 Transport Delay Manager",
-            bg="#0F172A",
-            fg="white",
-            font=("Segoe UI", 20, "bold")
-        ).pack(pady=10)
+        self.username_entry = tk.Entry(root, font=("Poppins", 11), bg="#1a1a1a", fg="white", relief=tk.FLAT)
+        self.username_entry.pack(pady=10)
 
-        main = tk.Frame(root, bg="#0F172A")
-        main.pack(fill="both", expand=True)
+        tk.Button(root, text="LOGIN", font=("Poppins", 11, "bold"), bg="#00d0ff",
+                  fg="#002834", relief=tk.FLAT, width=15, command=self.submit).pack(pady=15)
 
-        left = tk.Frame(main, bg="#0F172A")
-        left.pack(side="left", fill="y", padx=10)
+    # Modul 4: Method + GUI Action
+    def submit(self):
+        username = self.username_entry.get().strip()
+        if not username:   # Modul 2: Pengkondisian
+            return messagebox.showerror("Error", "Username tidak boleh kosong")
 
-        right = tk.Frame(main, bg="#0F172A")
-        right.pack(side="right", fill="both", expand=True, padx=10)
+        self.root.destroy()
+        main(username)
 
-        self.card_add_route(left)
-        self.card_report(left)
-        self.card_driver(left)
+# Modul 8: GUI 
 
-        self.card_queue(right)
-        self.card_driver_list(right)
-        self.card_history(right)
+class GameVaultGUI:
+    def __init__(self, root, username):
+        self.username = username
+        self.root = root
+        self.root.title(f"GameVault - Welcome {username}")
+        self.root.geometry("980x620")
+        self.root.configure(bg="#0f0f0f")
+        self.root.minsize(880, 520)
 
-        self.update_routes_menu()
-        self.update_ui()
+        self.mgr = CatalogManager()
 
-    # ================= PLACEHOLDER FUNCTION =================
-    def add_placeholder(self, entry, text):
-        entry.insert(0, text)
-        entry.config(foreground="gray")
+        self.bg = "#0f0f0f"
+        self.card = "#141414"
+        self.fg = "#e6e6e6"
+        self.accent = "#00d0ff"
+        self.button_accent = "#12b3d9"
 
-        def on_focus_in(event):
-            if entry.get() == text:
-                entry.delete(0, tk.END)
-                entry.config(foreground="black")
+        tk.Label(root, text=f"GAMEVAULT - {username.upper()}",
+                 font=("Poppins", 22, "bold"), fg=self.accent, bg=self.bg).pack(pady=(12, 6))
 
-        def on_focus_out(event):
-            if not entry.get():
-                entry.insert(0, text)
-                entry.config(foreground="gray")
+        container = tk.Frame(root, bg=self.bg)
+        container.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
 
-        entry.bind("<FocusIn>", on_focus_in)
-        entry.bind("<FocusOut>", on_focus_out)
+        # LEFT PANEL - FORM ENTRY
+        left = tk.Frame(container, bg=self.card)
+        left.pack(side=tk.LEFT, fill=tk.Y, padx=(8,16), pady=8)
 
-    # ================= STYLE =================
-    def setup_style(self):
-        style = ttk.Style()
-        style.theme_use("clam")
+        def label(text):
+            return tk.Label(left, text=text, bg=self.card, fg=self.fg, font=("Poppins", 10))
 
-        style.configure("TButton",
-            font=("Segoe UI", 10, "bold"),
-            padding=6,
-            background="#2563EB",
-            foreground="white")
+        label("Title").pack(anchor="w", pady=(8,2))
+        self.e_title = ttk.Entry(left, width=28)
+        self.e_title.pack(pady=4)
 
-        style.configure("TLabel",
-            background="#1E293B",
-            foreground="white",
-            font=("Segoe UI", 10))
+        label("Genre").pack(anchor="w", pady=(8,2))
+        self.e_genre = ttk.Entry(left, width=28)
+        self.e_genre.pack(pady=4)
 
-        style.configure("TFrame", background="#1E293B")
+        # Dropdown 
+        label("Platform").pack(anchor="w", pady=(8,2))
+        self.platform_var = tk.StringVar(value=PLATFORM_OPTIONS[0])
+        self.e_platform = ttk.Combobox(left, textvariable=self.platform_var, values=PLATFORM_OPTIONS, width=26)
+        self.e_platform.pack(pady=4)
 
-        style.configure("Treeview",
-            background="white",
-            foreground="black",
-            rowheight=25,
-            fieldbackground="white")
+        label("Year").pack(anchor="w", pady=(8,2))
+        self.e_year = ttk.Entry(left, width=28)
+        self.e_year.pack(pady=4)
 
-    def card(self, parent, title):
-        frame = tk.Frame(parent, bg="#1E293B", padx=10, pady=10)
-        frame.pack(fill="x", pady=8)
-        tk.Label(frame, text=title, font=("Segoe UI", 12, "bold"),
-                 bg="#1E293B", fg="white").pack(anchor="w", pady=3)
-        return frame
+        label("Status").pack(anchor="w", pady=(8,2))
+        self.status_var = tk.StringVar(value=STATUS_OPTIONS[2])
+        self.e_status = ttk.Combobox(left, textvariable=self.status_var, values=STATUS_OPTIONS, width=26)
+        self.e_status.pack(pady=4)
 
-    # ================= ADD ROUTE =================
-    def card_add_route(self, parent):
-        card = self.card(parent, "Add Route")
+        def btn(text, cmd):
+            return tk.Button(left, text=text, font=("Poppins", 10, "bold"), width=20, command=cmd,
+                             bg=self.button_accent, fg="#062027", relief=tk.FLAT)
 
-        self.entry_route_code = ttk.Entry(card)
-        self.entry_route_code.pack(fill="x", pady=4)
-        self.add_placeholder(self.entry_route_code, "Code")
+        # BUTTON ACTIONS 
+        btn("Tambah Game", self.gui_add).pack(pady=6)
+        btn("Edit Selected", self.gui_edit).pack(pady=6)
+        btn("Hapus Selected", self.gui_delete).pack(pady=6)
+        btn("Undo", self.gui_undo).pack(pady=6)
+        tk.Button(left, text="Clear Form", command=self.clear_form, bg="#2a2a2a", fg=self.fg, relief=tk.FLAT).pack(pady=(6,12))
 
-        self.entry_route_name = ttk.Entry(card)
-        self.entry_route_name.pack(fill="x", pady=4)
-        self.add_placeholder(self.entry_route_name, "Route Name")
+        # RIGHT PANEL - GAME LIST
 
-        ttk.Button(card, text="Add Route", command=self.add_route).pack(fill="x")
+        right = tk.Frame(container, bg=self.bg)
+        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0,8), pady=8)
 
-    # ================= REPORT =================
-    def card_report(self, parent):
-        card = self.card(parent, "Report Delay")
+        search_frame = tk.Frame(right, bg=self.bg)
+        search_frame.pack(fill=tk.X, pady=(4,8))
 
-        self.sel_route_var = tk.StringVar(value="")
-        self.route_menu = ttk.Combobox(card, textvariable=self.sel_route_var)
-        self.route_menu.pack(fill="x", pady=4)
+        tk.Label(search_frame, text="Search", font=("Poppins", 10), fg=self.fg, bg=self.bg).pack(side=tk.LEFT, padx=(4,6))
+        self.e_search = ttk.Entry(search_frame)
+        self.e_search.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,8))
 
-        self.entry_delay = ttk.Entry(card)
-        self.entry_delay.pack(fill="x", pady=4)
-        self.add_placeholder(self.entry_delay, "Delay (min)")
+        tk.Button(search_frame, text="Cari", command=self.gui_search, bg=self.button_accent,
+                  fg="#062027", relief=tk.FLAT).pack(side=tk.LEFT, padx=6)
+        tk.Button(search_frame, text="Tampilkan Semua", command=self.gui_list_all,
+                  bg=self.button_accent, fg="#062027", relief=tk.FLAT).pack(side=tk.LEFT, padx=6)
 
-        self.entry_reason = ttk.Entry(card)
-        self.entry_reason.pack(fill="x", pady=4)
-        self.add_placeholder(self.entry_reason, "Reason")
+        # List Display Header
+        header = tk.Frame(right, bg=self.card)
+        header.pack(fill=tk.X, pady=(0,6))
 
-        ttk.Button(card, text="Add to Queue", command=self.report_delay).pack(fill="x")
+        tk.Label(header, text="Title", bg=self.card, fg=self.fg, width=23, anchor="w", font=("Poppins", 10, "bold")).pack(side=tk.LEFT, padx=8)
+        tk.Label(header, text="Genre", bg=self.card, fg=self.fg, width=15, anchor="w", font=("Poppins", 10, "bold")).pack(side=tk.LEFT)
+        tk.Label(header, text="Platform", bg=self.card, fg=self.fg, width=12, anchor="w", font=("Poppins", 10, "bold")).pack(side=tk.LEFT)
+        tk.Label(header, text="Year", bg=self.card, fg=self.fg, width=7, anchor="w", font=("Poppins", 10, "bold")).pack(side=tk.LEFT)
+        tk.Label(header, text="Status", bg=self.card, fg=self.fg, width=10, anchor="w", font=("Poppins", 10, "bold")).pack(side=tk.LEFT)
 
-    # ================= DRIVER =================
-    def card_driver(self, parent):
-        card = self.card(parent, "Add Driver")
+        # Listbox (GUI) → menampilkan data game
+        self.listbox = tk.Listbox(right, font=("Consolas", 10), bg="#0b0b0b", fg=self.accent,
+                                  selectbackground="#063a45", selectforeground="#fff", activestyle="none")
+        self.listbox.pack(fill=tk.BOTH, expand=True)
+        self.listbox.bind("<Double-Button-1>", self.on_double_click)
 
-        self.entry_driver = ttk.Entry(card)
-        self.entry_driver.pack(fill="x", pady=4)
-        self.add_placeholder(self.entry_driver, "Driver Name")
+        tk.Button(right, text="Lihat Recent", command=self.gui_show_recent, bg=self.button_accent,
+                  fg="#062027", relief=tk.FLAT).pack(side=tk.LEFT, padx=6, pady=6)
+        tk.Button(right, text="Export JSON", command=self.export_json, bg="#2a2a2a",
+                  fg=self.fg, relief=tk.FLAT).pack(side=tk.LEFT, padx=6, pady=6)
 
-        ttk.Button(card, text="Add Driver", command=self.add_driver).pack(fill="x")
+        self.gui_list_all()
 
-    # ================= QUEUE =================
-    def card_queue(self, parent):
-        card = self.card(parent, "Queue List")
+    # Format Row Fixed Width 
+    # Modul 4: Method
+    def format_row(self, g: Game):
+        return (
+            f"{g.title[:28].ljust(30)}"
+            f"{g.genre[:16].ljust(18)}"
+            f"{g.platform[:12].ljust(14)}"
+            f"{str(g.year).ljust(8)}"
+            f"{g.status[:10].ljust(12)}"
+        )
 
-        self.qbox = tk.Listbox(card, height=6, font=("Consolas", 10))
-        self.qbox.pack(fill="x", pady=4)
+    # GUI FUNCTIONS 
+    def clear_form(self):                    # Modul 4
+        self.e_title.delete(0, tk.END)
+        self.e_genre.delete(0, tk.END)
+        self.e_year.delete(0, tk.END)
+        self.platform_var.set(PLATFORM_OPTIONS[0])
+        self.status_var.set(STATUS_OPTIONS[2])
 
-        ttk.Button(card, text="Auto Assign", command=self.auto_assign).pack(fill="x")
+    def gui_add(self):                       # Modul 4 + GUI Action
+        title = self.e_title.get().strip()
+        genre = self.e_genre.get().strip()
+        platform = self.platform_var.get().strip()
+        year = self.e_year.get().strip()
+        status = normalize_status(self.status_var.get())
 
-    # ================= DRIVER LIST =================
-    def card_driver_list(self, parent):
-        card = self.card(parent, "Drivers")
-
-        self.dbox = tk.Listbox(card, height=6, font=("Consolas", 10))
-        self.dbox.pack(fill="x", pady=4)
-
-        ttk.Button(card, text="Finish Selected Driver", command=self.finish_driver).pack(fill="x")
-
-    # ================= HISTORY =================
-    def card_history(self, parent):
-        card = self.card(parent, "History")
-
-        self.hbox = tk.Listbox(card, height=6, font=("Consolas", 10))
-        self.hbox.pack(fill="x", pady=4)
-
-    # ================= LOGIC =================
-
-    def add_route(self):
-        code = self.entry_route_code.get().strip()
-        name = self.entry_route_name.get().strip()
-
-        if code and name and code != "Code" and name != "Route Name":
-            self.dm.add_route(code, name)
-            self.update_routes_menu()
-            self.entry_route_code.delete(0, tk.END)
-            self.entry_route_name.delete(0, tk.END)
-            self.add_placeholder(self.entry_route_code, "Code")
-            self.add_placeholder(self.entry_route_name, "Route Name")
-
-    def update_routes_menu(self):
-        values = [r.code for r in self.dm.routes]
-        self.route_menu["values"] = values
-        if values:
-            self.sel_route_var.set(values[0])
-
-    def report_delay(self):
-        code = self.sel_route_var.get()
+        # Modul 2: Pengkondisian
+        if not validate_nonempty(title): return messagebox.showerror("Error", "Title tidak boleh kosong")
+        if not validate_nonempty(genre): return messagebox.showerror("Error", "Genre tidak boleh kosong")
+        if not validate_nonempty(platform): return messagebox.showerror("Error", "Platform tidak boleh kosong")
+        if not validate_year(year): return messagebox.showerror("Error", "Year tidak valid (1970-2050)")
 
         try:
-            delay = int(self.entry_delay.get())
-        except:
-            messagebox.showerror("Error", "Delay must be number")
-            return
+            self.mgr.add_game(Game(title, genre, platform, int(year), status))
+            messagebox.showinfo("Sukses", f"Game '{title}' ditambahkan!")
+            self.gui_list_all()
+            self.clear_form()
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
 
-        reason = self.entry_reason.get().strip()
+    # Modul 3: Loop menampilkan list
+    def gui_list_all(self):
+        self.listbox.delete(0, tk.END)
+        for g in self.mgr.list_all():   # LOOP
+            self.listbox.insert(tk.END, self.format_row(g))
 
-        if reason == "Reason" or reason == "":
-            messagebox.showerror("Error", "Enter valid reason")
-            return
+    def gui_search(self):               # Modul 4
+        kw = self.e_search.get().strip()
+        results = self.mgr.search_games(kw)
+        self.listbox.delete(0, tk.END)
+        for g in results:               # LOOP
+            self.listbox.insert(tk.END, self.format_row(g))
 
-        data = {
-            "route_code": code,
-            "est_delay_min": delay,
-            "reason": reason,
-            "reported_at": time.time()
-        }
-
-        self.dm.enqueue(data)
-        self.entry_delay.delete(0, tk.END)
-        self.entry_reason.delete(0, tk.END)
-
-        self.add_placeholder(self.entry_delay, "Delay (min)")
-        self.add_placeholder(self.entry_reason, "Reason")
-
-        self.update_ui()
-
-    def add_driver(self):
-        name = self.entry_driver.get().strip()
-
-        if name and name != "Driver Name":
-            self.dm.add_driver(name)
-            self.entry_driver.delete(0, tk.END)
-            self.add_placeholder(self.entry_driver, "Driver Name")
-            self.update_ui()
-
-    def auto_assign(self):
-        ok, msg = self.dm.auto_assign()
-        if not ok:
-            messagebox.showwarning("Info", msg)
-        self.update_ui()
-
-    def finish_driver(self):
-        sel = self.dbox.curselection()
+    def get_selected_title(self):
+        sel = self.listbox.curselection()
         if not sel:
-            return
+            return None
+        return self.listbox.get(sel[0])[:30].strip()
 
-        did = int(self.dbox.get(sel[0]).split(" | ")[0])
-        self.dm.driver_finish(did)
+    def gui_delete(self):               # Modul 4 + GUI
+        title = self.get_selected_title()
+        if not title: return messagebox.showwarning("Pilih", "Pilih game terlebih dahulu.")
+        if messagebox.askyesno("Konfirmasi", f"Hapus game '{title}'?"):  # Modul 2
+            try:
+                self.mgr.remove_game(title)
+                self.gui_list_all()
+                messagebox.showinfo("Sukses", "Game dihapus.")
+            except ValueError as e:
+                messagebox.showerror("Error", str(e))
 
-        self.update_ui()
+    def gui_edit(self):
+        title = self.get_selected_title()
+        if not title: return messagebox.showwarning("Pilih", "Pilih game terlebih dahulu.")
 
-    def update_ui(self):
-        self.qbox.delete(0, tk.END)
-        for r in self.dm.show_all():
-            self.qbox.insert(tk.END, f"{r['route_code']} - {r['est_delay_min']} min")
+        g = next((x for x in self.mgr.list_all() if x.title.lower() == title.lower()), None)
+        if not g: return messagebox.showerror("Error", "Game tidak ditemukan.")
 
-        self.dbox.delete(0, tk.END)
-        for d in self.dm.drivers:
-            task = d.current_report["route_code"] if d.current_report else "-"
-            self.dbox.insert(tk.END, f"{d.id} | {d.name} | {d.status} | {task}")
+        # GUI Input using dialogs
+        new_title = simpledialog.askstring("Edit", "Title:", initialvalue=g.title)
+        new_genre = simpledialog.askstring("Edit", "Genre:", initialvalue=g.genre)
+        new_platform = simpledialog.askstring("Edit", "Platform:", initialvalue=g.platform)
+        new_year = simpledialog.askstring("Edit", "Year:", initialvalue=str(g.year))
+        new_status = simpledialog.askstring("Edit", "Status:", initialvalue=g.status)
 
-        self.hbox.delete(0, tk.END)
-        for h in reversed(self.dm.items[-10:]):
-            t = time.strftime("%H:%M", time.localtime(h["timestamp"]))
-            self.hbox.insert(tk.END,
-                             f"{h['report']['route_code']} - {h['driver']} @ {t}")
+        if not (new_title and new_genre and new_platform and new_year and new_status):
+            return messagebox.showwarning("Batal", "Input tidak lengkap.")
+
+        if not validate_year(new_year):
+            return messagebox.showerror("Error", "Year tidak valid.")
+
+        new_game = Game(new_title.strip(), new_genre.strip(),
+                        new_platform.strip(), int(new_year),
+                        normalize_status(new_status))
+
+        try:
+            self.mgr.edit_game(title, new_game)
+            self.gui_list_all()
+            messagebox.showinfo("Sukses", "Game diedit.")
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+
+    def gui_undo(self):
+        try:
+            msg = self.mgr.undo()
+            self.gui_list_all()
+            messagebox.showinfo("Undo", msg)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+
+    def on_double_click(self, event):
+        sel = self.listbox.curselection()
+        if not sel: return
+        title = self.listbox.get(sel[0])[:30].strip()
+        g = next((x for x in self.mgr.list_all() if x.title.lower() == title.lower()), None)
+        if g:
+            self.mgr.push_recent(g)   # Modul 6 → Queue
+            messagebox.showinfo("Detail Game", str(g))
+
+    def gui_show_recent(self):
+        recent = self.mgr.get_recent()
+        if not recent:
+            return messagebox.showinfo("Recent", "Belum ada recent view.")
+        s = "\n".join(str(g) for g in recent)   # Modul 3 Loop
+        messagebox.showinfo("Recent Views", s)
+
+    def export_json(self):
+        try:
+            self.mgr.save()
+            messagebox.showinfo("Export", f"Data berhasil diexport ke {self.mgr.filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Gagal export: {e}")
 
 
-# ===============================
-# RUN
-# ===============================
+# Main Program dengan Login
+# Modul 4 + Modul 8
+
+def main(username=None):
+    root = tk.Tk()
+
+    if username:
+        app = GameVaultGUI(root, username)
+    else:
+        app = LoginScreen(root)
+
+    root.mainloop()
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = App(root)
-    root.mainloop()
+    main()

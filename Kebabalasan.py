@@ -1,20 +1,5 @@
 # =========================================
-# Game Store (Tkinter) — Versi Penuh
-# Bahasa Indonesia untuk seluruh penjelasan (#)
-# Fitur:
-# - Katalog 3 kolom responsif memenuhi lebar saat resize
-# - Kartu game menarik dengan ikon diperkecil agar muat 3 per baris
-# - Jika diskon: harga asli dicoret + harga setelah diskon ditampilkan
-# - Ikon tombol Keranjang di header
-# - Klik gambar game membuka menu Detail Game (bukan pop-up)
-#   Detail berisi gambar besar, deskripsi, konten dewasa, spesifikasi, tombol "Putar Trailer" (via os.startfile)
-# - Keranjang dengan tombol + dan − (inkrement/dekrement item)
-# - Konfirmasi checkout dengan UI menarik (custom)
-# - Struk bergambar
-# - Lucky Spin sederhana: jumlah spin dibatasi sesuai jumlah pembelian; hadiah saldo & voucher diskon
-# - Dialog berwarna untuk "Keranjang kosong" & "Saldo tidak cukup"
-# - Daily deal informatif (harga dari–menjadi dan persen)
-# - Mengembalikan God of War dan Persona 5 Royal
+# Game Store (Tkinter) —
 # - Perbaikan gambar: semua PhotoImage disimpan agar tidak hilang (garbage collection)
 # =========================================
 
@@ -140,8 +125,8 @@ class StoreApp:
             Game("mc", "Minecraft", 300000, os.path.join(self.img_dir, "minecraft.png")),
             Game("exp33", "Clair Obscur: Expedition 33", 500000, os.path.join(self.img_dir, "ekspedisi.png")),
             Game("silk", "Hollow Knight: Silksong", 450000, os.path.join(self.img_dir, "silksong.png")),
-            Game("gow", "God of War", 600000, os.path.join(self.img_dir, "gow.png")),
-            Game("p5r", "Persona 5 Royal", 550000, os.path.join(self.img_dir, "p5r.png")),
+            Game("gow", "God of War", 600000, os.path.join(self.img_dir, "godwar.png")),
+            Game("p5r", "Persona 5 Royal", 550000, os.path.join(self.img_dir, "persona.png")),
         ]
         for g in self.games:
             self.base_price[g] = g.price
